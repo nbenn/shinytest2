@@ -271,5 +271,32 @@ app_start_shiny <- function(
   url <- sub(".*(https?://.*)", "\\1", line)
   private$shiny_url$set(url)
 
+  # shiny prints the "Listening on ..." line above *before* it binds the
+  # socket, so on a slow or loaded host the port may not be accepting
+  # connections yet. Navigating then lands on the browser's error page, and the
+  # later recovery navigation (once the app binds) races initialization's
+  # readiness and idle checks. Wait for the port to accept connections first.
+  app_wait_for_serving(url, timeout = load_timeout)
+
   invisible(self)
+}
+
+# Poll `url`'s port until it accepts a connection (or `timeout` ms elapse), so a
+# caller can navigate against a bound socket rather than the error page the
+# browser shows for a not-yet-bound port. Returns invisibly whether the port
+# came up. `pingr::is_up()` is the same reachability check `app_httr2_get()`
+# already uses.
+app_wait_for_serving <- function(url, timeout = 10000) {
+  pieces <- httr2::url_parse(url)
+
+  deadline <- Sys.time() + timeout / 1000
+  repeat {
+    if (isTRUE(pingr::is_up(pieces$hostname, pieces$port, check_online = FALSE))) {
+      return(invisible(TRUE))
+    }
+    if (Sys.time() >= deadline) {
+      return(invisible(FALSE))
+    }
+    Sys.sleep(0.05)
+  }
 }

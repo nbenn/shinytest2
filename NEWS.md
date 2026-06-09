@@ -2,6 +2,14 @@
 
 ## Bug fixes and minor improvements
 
+* `AppDriver$new()` no longer intermittently aborts during initialization
+  with "did not become stable" when the app's port is slow to bind. shiny
+  prints the "Listening on ..." line before it binds the listening socket,
+  so on a slow or loaded host the initial navigation could reach a
+  not-yet-bound port and land on the browser's error page; the error-page
+  recovery navigation then raced the readiness/idle checks. `AppDriver$new()`
+  now waits for the port to accept a connection before navigating.
+
 * `$get_download()` and `$expect_download()` now correctly construct the
   download URL when the app URL contains query parameters. Previously,
   query parameters were concatenated into the download path, causing an
